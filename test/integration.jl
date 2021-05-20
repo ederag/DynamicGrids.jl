@@ -402,7 +402,7 @@ end
 @testset "SparseOpt rules run everywhere with non zero values" begin
     set_hood = SetNeighbors() do data, hood, val, I 
         for p in positions(hood, I)
-            data[p...] = 2
+            data[p] = 2
         end
     end
     clearcell = Cell() do data, val, I

@@ -39,17 +39,17 @@ end
 @kernel function cu_neighborhood_kernel!(
     data, opt, ruletype::Val{<:NeighborhoodRule}, rule, rkeys, wkeys
 )
-    I, J = @index(Global, NTuple)
+    I = @index(Global, Cartesian)
     src = parent(source(_firstgrid(data, rkeys)))
-    buf = _getwindow(src, neighborhood(rule), I, J)
+    buf = _getwindow(src, neighborhood(rule), I)
     bufrule = _setbuffer(rule, buf)
-    cell_kernel!(data, ruletype, bufrule, rkeys, wkeys, I, J)
+    cell_kernel!(data, ruletype, bufrule, rkeys, wkeys, I)
     nothing
 end
 
 @kernel function cu_cell_kernel!(data, ruletype::Val, rule, rkeys, wkeys)
-    i, j = @index(Global, NTuple)
-    cell_kernel!(data, ruletype, rule, rkeys, wkeys, i, j)
+    I = @index(Global, Cartesian)
+    cell_kernel!(data, ruletype, rule, rkeys, wkeys, I)
     nothing
 end
 

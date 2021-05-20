@@ -27,7 +27,11 @@ ConstructionBase.constructorof(::Type{<:T}) where T <: Neighborhood{R,L} where {
 
 radius(hood::Neighborhood{R}) where R = R
 _buffer(hood::Neighborhood) = hood._buffer
-@inline positions(hood::Neighborhood, I) = (I .+ o for o in offsets(hood))
+@inline positions(hood::Neighborhood, I::CartesianIndex) = positions(hood, Tuple(I)...)
+@inline positions(hood::Neighborhood, I::Tuple) = positions(hood, I...)
+@inline function positions(hood::Neighborhood, i1::Int, I::Int...)
+    (CartesianIndex((i1, I...) .+ Tuple(o)) for o in offsets(hood))
+end
 
 Base.eltype(hood::Neighborhood) = eltype(_buffer(hood))
 Base.length(hood::Neighborhood{<:Any,L}) where L = L
@@ -64,7 +68,7 @@ Moore{R,L}(_buffer::B=nothing) where {R,L,B} = Moore{R,L,B}(_buffer)
     return (_buffer(hood)[i] for i in 1:buflen if i != centerpoint)
 end
 @inline function offsets(hood::Moore{R}) where R
-    ((i, j) for j in -R:R, i in -R:R if i != (0, 0))
+    (CartesianIndex(i, j) for j in -R:R, i in -R:R if i != (0, 0))
 end
 @inline _setbuffer(n::Moore{R,L}, buf::B2) where {R,L,B2} = Moore{R,L,B2}(buf)
 
@@ -92,7 +96,7 @@ end
 @inline _setbuffer(::Window{R,L}, buf::B2) where {R,L,B2} = Window{R,L,B2}(buf)
 
 # The central cell is included
-@inline offsets(hood::Window{R}) where R = ((i, j) for j in -R:R, i in -R:R)
+@inline offsets(hood::Window{R}) where R = (CartesianIndex(i, j) for j in -R:R, i in -R:R)
 
 neighbors(hood::Window) = _buffer(hood)
 
@@ -109,7 +113,7 @@ abstract type AbstractKernelNeighborhood{R,L} <: Neighborhood{R,L} end
 neighborhood(hood::AbstractKernelNeighborhood) = hood.neighborhood
 neighbors(hood::AbstractKernelNeighborhood) = neighbors(neighborhood(hood))
 offsets(hood::AbstractKernelNeighborhood) = offsets(neighborhood(hood))
-positions(hood::AbstractKernelNeighborhood, I) = positions(neighborhood(hood), I)
+positions(hood::AbstractKernelNeighborhood, i1::Int, I::Int...) = positions(neighborhood(hood), I)
 kernel(hood::AbstractKernelNeighborhood) = hood.kernel
 
 kernelproduct(hood::AbstractKernelNeighborhood) = 
@@ -170,8 +174,9 @@ order for performance.
 """
 abstract type AbstractPositionalNeighborhood{R,L} <: Neighborhood{R,L} end
 
-const CustomOffset = Tuple{Vararg{Int}}
-const CustomOffsets = Union{AbstractArray{<:CustomOffset},Tuple{Vararg{<:CustomOffset}}}
+const _CartesianOffsets = Union{AbstractArray{<:CartesianIndex},Tuple{Vararg{<:CartesianIndex}}}
+const _Offset = Union{Tuple{Vararg{Int}},CartesianIndex}
+const _Offsets = Union{AbstractArray{<:_Offset},Tuple{Vararg{<:_Offset}}}
 
 """
     Positional <: AbstractPositionalNeighborhood
@@ -187,19 +192,23 @@ The neighborhood radius is calculated from the most distance coordinate.
 For simplicity the buffer read from the main grid is a square with sides
 `2r + 1` around the central point.
 """
-struct Positional{R,L,O<:CustomOffsets,B} <: AbstractPositionalNeighborhood{R,L}
+struct Positional{R,L,O<:_CartesianOffsets,B} <: AbstractPositionalNeighborhood{R,L}
     "A tuple of tuples of Int, containing 2-D coordinates relative to the central point"
     offsets::O
     _buffer::B
 end
-Positional(args::CustomOffset...) = Positional(args)
-Positional(offsets::CustomOffsets, _buffer=nothing) =
-    Positional{_absmaxcoord(offsets),length(offsets)}(offsets, _buffer)
-Positional{R,L}(offsets::O, _buffer::B=nothing) where {R,L,O<:CustomOffsets,B} =
+Positional(offsets::_Offset...) = Positional(offsets)
+Positional(offsets::_Offsets, _buffer=nothing) =
+    Positional(map(CartesianIndex, offsets), _buffer)
+Positional(offsets::_CartesianOffsets, _buffer=nothing) =
+    Positional{_absmaxcoord(offsets),length(offsets)}(map(CartesianIndex, offsets), _buffer)
+Positional{R,L}(offsets::O, _buffer::B=nothing) where {R,L,O,B} =
     Positional{R,L,O,B}(offsets, _buffer)
 
 # Calculate the maximum absolute value in the offsets to use as the radius
-_absmaxcoord(offsets::Union{AbstractArray,Tuple}) = maximum(map(x -> maximum(map(abs, x)), offsets))
+function _absmaxcoord(offsets::Union{AbstractArray,Tuple})
+    maximum(map(x -> maximum(map(abs, Tuple(x))), offsets))
+end
 
 ConstructionBase.constructorof(::Type{Positional{R,L,C,B}}) where {R,L,C,B} =
     Positional{R,L}
@@ -208,7 +217,7 @@ Base.length(hood::Positional) = length(offsets(hood))
 
 offsets(hood::Positional) = hood.offsets
 @inline neighbors(hood::Positional) =
-    (_buffer(hood)[(offset .+ radius(hood) .+ 1)...] for offset in offsets(hood))
+    (_buffer(hood)[(Tuple(o) .+ radius(hood) .+ 1)...] for o in offsets(hood))
 @inline _setbuffer(n::Positional{R,L,O}, buf::B2) where {R,L,O,B2} =
     Positional{R,L,O,B2}(offsets(n), buf)
 
@@ -238,7 +247,9 @@ end
 
 @inline neighbors(hood::LayeredPositional) = map(l -> neighbors(l), hood.layers)
 @inline offsets(hood::LayeredPositional) = map(l -> offsets(l), hood.layers)
-@inline positions(hood::LayeredPositional, args...) = map(l -> positions(l, args...), hood.layers)
+@inline function positions(hood::LayeredPositional, i1::Int, I::Int...)
+    map(l -> positions(l, i1, I...), hood.layers)
+end
 @inline _setbuffer(n::LayeredPositional{R,L}, buf) where {R,L} =
     LayeredPositional{R,L}(n.layers, buf)
 
@@ -256,7 +267,7 @@ function VonNeumann(radius=1, _buffer=nothing)
     for j in rng, i in rng
         distance = abs(i) + abs(j)
         if distance <= radius && distance > 0
-            push!(offsets, (i, j))
+            push!(offsets, CartesianIndex(i, j))
         end
     end
     return Positional(Tuple(offsets), _buffer)

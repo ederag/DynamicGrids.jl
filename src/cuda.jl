@@ -39,8 +39,11 @@ function Adapt.adapt_structure(to, o::Output)
 end
 
 @noinline function _proc_setup(::CuGPU, obj) 
-    Flatten.modify(CuArray, obj, Union{Array,BitArray}, Union{CuArray,SArray,Dict,Function})
+    Flatten.modify(_to_cuarray, obj, Union{Array,BitArray}, Union{CuArray,SArray,Dict,Function})
 end
+
+_to_cuarray(A) = CuArray(A)
+_to_cuarray(A::AbstractArray{<:CuArray}) = CuArray(CUDA.Adaptor.(A))
 
 _copyto_output!(outgrid, grid::GridData, proc::GPU) = copyto!(outgrid, gridview(grid))
 
@@ -50,6 +53,9 @@ _copyto_output!(outgrid, grid::GridData, proc::GPU) = copyto!(outgrid, gridview(
 for (f, op) in atomic_ops
     atomic_f = Symbol(:atomic_, f)
     @eval begin
+        @propagate_inbounds function ($f)(d::WritableGridData{<:Any,R}, proc::CuGPU, x, I::CartesianIndex) where R
+            ($f)(d, proc, x, Tuple(I...))
+        end
         @propagate_inbounds function ($f)(d::WritableGridData{<:Any,R}, ::CuGPU, x, I...) where R
             A = parent(dest(d))
             i = Base._to_linear_index(A, (I .+ R)...)

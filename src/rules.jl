@@ -172,6 +172,7 @@ abstract type SetRule{R,W} <: Rule{R,W} end
 ruletype(::SetRule) = SetRule
 
 """
+
     SetCellRule <: Rule
 
 Abstract supertype for rules that can manually write to any cells of the

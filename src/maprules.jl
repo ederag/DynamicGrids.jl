@@ -50,8 +50,8 @@ end
 function maprule!(data::AbstractSimData, proc::CPU, opt, ruletype::Val, rule, rkeys, wkeys)
     let data=data, proc=proc, opt=opt, rule=rule,
         rkeys=rkeys, wkeys=wkeys, ruletype=ruletype
-        optmap(data, proc, opt, ruletype, rkeys) do i, j
-            cell_kernel!(data, ruletype, rule, rkeys, wkeys, i, j)
+        optmap(data, proc, opt, ruletype, rkeys) do I::CartesianIndex
+            cell_kernel!(data, ruletype, rule, rkeys, wkeys, I)
         end
     end
 end
@@ -112,7 +112,7 @@ function optmap(
                 istart, jstart  = max(istart, 1), max(jstart, 1)
                 for j in jstart:jstop 
                     @simd for i in istart:istop
-                        f(i, j)
+                        f(CartesianIndex(i, j))
                     end
                 end
             end
@@ -126,7 +126,7 @@ function optmap(
 ) where S<:Tuple{Y,X} where {Y,X}
     procmap(proc, 1:X) do j
         for i in 1:Y
-            f(i, j) # Run rule for each row in column j
+            f(CartesianIndex(i, j)) # Run rule for each row in column j
         end
     end
 end
@@ -135,7 +135,7 @@ function optmap(
 ) where S<:Tuple{Y,X} where {Y,X}
     procmap(proc, 1:X) do j
         @simd for i in 1:Y
-            f(i, j) # Run rule for each row in column j
+            f(CartesianIndex(i, j)) # Run rule for each row in column j
         end
     end
 end
@@ -153,15 +153,15 @@ end
 
 # cell_kernel!
 # runs a rule for the current cell
-@inline function cell_kernel!(simdata, ruletype::Val{<:Rule}, rule, rkeys, wkeys, i, j)
-    readval = _readcell(simdata, rkeys, i, j)
-    writeval = applyrule(simdata, rule, readval, (i, j))
-    _writecell!(simdata, ruletype, wkeys, writeval, i, j)
+@inline function cell_kernel!(simdata, ruletype::Val{<:Rule}, rule, rkeys, wkeys, I::CartesianIndex)
+    readval = _readcell(simdata, rkeys, I)
+    writeval = applyrule(simdata, rule, readval, I)
+    _writecell!(simdata, ruletype, wkeys, writeval, I)
     writeval
 end
-@inline function cell_kernel!(simdata, ::Val{<:SetRule}, rule, rkeys, wkeys, i, j)
-    readval = _readcell(simdata, rkeys, i, j)
-    applyrule!(simdata, rule, readval, (i, j))
+@inline function cell_kernel!(simdata, ::Val{<:SetRule}, rule, rkeys, wkeys, I::CartesianIndex)
+    readval = _readcell(simdata, rkeys, I)
+    applyrule!(simdata, rule, readval, I)
     nothing
 end
 
@@ -186,7 +186,8 @@ function row_kernel!(
         # Loop over the COLUMN of buffers covering the block
         for b in 1:blocklen
             @inbounds bufrule = _setbuffer(rule, buffers[b])
-            cell_kernel!(simdata, ruletype, bufrule, rkeys, wkeys, i + b - 1, j)
+            I = CartesianIndex(i + b - 1, j)
+            cell_kernel!(simdata, ruletype, bufrule, rkeys, wkeys, I)
         end
     end
     return nothing
@@ -231,7 +232,8 @@ function row_kernel!(
                     # Loop over the grid ROWS inside the block
                     blocklen = min(Y, i + B - 1) - i + 1
                     for b in 1:blocklen
-                        cell_kernel!(simdata, ruletype, rule, rkeys, wkeys, i + b - 1, j)
+                        I = CartesianIndex(i + b - 1, j)
+                        cell_kernel!(simdata, ruletype, rule, rkeys, wkeys, I)
                     end
                 end
             end
@@ -264,7 +266,8 @@ function row_kernel!(
                 # Set rule buffer
                 bufrule = _setbuffer(rule, buffers[b])
                 # Run the rule kernel for the cell
-                writeval = cell_kernel!(simdata, ruletype, bufrule, rkeys, wkeys, i + b - 1, j)
+                I = CartesianIndex(i + b - 1, j)
+                writeval = cell_kernel!(simdata, ruletype, bufrule, rkeys, wkeys, I)
                 # Update the status for the current block
                 cs = _cellstatus(opt, wkeys, writeval)
                 curblocki = R == 1 ? b : (b - 1) ÷ R + 1

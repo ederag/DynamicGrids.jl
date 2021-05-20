@@ -113,7 +113,7 @@ end
     rule = SetNeighbors(VonNeumann(1)) do data, hood, state, I
         if state > 0
             for pos in positions(hood, I)
-                add!(data, 1, pos...) 
+                add!(data, 1, pos) 
             end
         end
     end
@@ -143,10 +143,10 @@ end
              0 0 1 0]
     @testset "add!" begin
         output = ArrayOutput(init; tspan=1:2)
-        rule = SetCell() do data, state, I
+        rule = SetCell() do data, state, I::CartesianIndex
             if state > 0
-                pos = I[1] - 2, I[2]
-                isinbounds(data, pos) && add!(first(data), 1, pos...)
+                pos = CartesianIndex(I[1] - 2, I[2])
+                isinbounds(data, pos) && add!(first(data), 1, pos)
             end
         end
         for proc in hardware, opt in (NoOpt(), SparseOpt())
@@ -165,8 +165,8 @@ end
         output = ArrayOutput(init; tspan=1:2)
         rule = SetCell() do data, state, I
             if state > 0
-                pos = I[1] - 2, I[2]
-                isinbounds(data, pos) && (data[pos...] = 5)
+                pos = CartesianIndex(I[1] - 2, I[2])
+                isinbounds(data, pos) && (data[pos] = 5)
             end
         end
         sim!(output, rule)
@@ -202,7 +202,7 @@ end
 end
 
 struct AddOneRule{R,W} <: CellRule{R,W} end
-DynamicGrids.applyrule(data, ::AddOneRule, state, args...) = state + 1
+DynamicGrids.applyrule(data, ::AddOneRule, state, I) = state + 1
 
 
 @testset "Rulset mask ignores false cells" begin

@@ -9,6 +9,8 @@ for (f, op) in atomic_ops
     @eval begin
         @propagate_inbounds ($f)(d::AbstractSimData, x, I...) = ($f)(first(d), x, I...)
         @propagate_inbounds ($f)(d::WritableGridData{<:Any,R}, x, I...) where R = ($f)(d, proc(d), x, I...)
+        # Handle tuple as index
+        @propagate_inbounds ($f)(d::WritableGridData{<:Any,R}, x, I::Tuple) where R = ($f)(d, proc(d), x, I...)
         @propagate_inbounds function ($f)(d::WritableGridData{<:Any,R}, ::Processor, x, I...) where R
             @boundscheck checkbounds(dest(d), I...)
             @inbounds _setdeststatus!(d, x, I...)

@@ -30,8 +30,8 @@ import DynamicGrids: SimData, Extent, WritableGridData,
         @test neighbors(moore) isa Base.Generator
         @test collect(neighbors(moore)) == [0, 1, 0, 0, 1, 0, 1, 1]
         @test sum(moore) == sum(neighbors(moore)) == 4
-        @test Tuple(offsets(moore)) == ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 0), 
-                                        (0, 1), (1, -1), (1, 0), (1, 1))
+        @test Tuple(offsets(moore)) == CartesianIndex.(((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 0), 
+                                                        (0, 1), (1, -1), (1, 0), (1, 1)))
 
         moore1 = @set moore._buffer = buf1
         @test moore1._buffer == buf1
@@ -53,8 +53,8 @@ import DynamicGrids: SimData, Extent, WritableGridData,
         @test neighbors(window) isa Array 
         @test neighbors(window) == _buffer(window)
         @test sum(window) == sum(neighbors(window)) == 4
-        @test Tuple(offsets(window)) == ((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 0), 
-                                        (0, 1), (1, -1), (1, 0), (1, 1))
+        @test Tuple(offsets(window)) == CartesianIndex.(((-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 0), 
+                                                         (0, 1), (1, -1), (1, 0), (1, 1)))
 
         window1 = @set window._buffer = buf1
         @test window1._buffer == buf1
@@ -67,7 +67,7 @@ import DynamicGrids: SimData, Extent, WritableGridData,
     end
     @testset "VonNeumann/Positional" begin
         vonneumann = VonNeumann(1, init[1:3, 1:3])
-        @test offsets(vonneumann) == ((0, -1), (-1, 0), (1, 0), (0, 1))
+        @test offsets(vonneumann) == CartesianIndex.(((0, -1), (-1, 0), (1, 0), (0, 1)))
         @test _buffer(vonneumann) == init[1:3, 1:3]
         @test hoodsize(vonneumann) == 3
         @test vonneumann[2, 1] == 1
@@ -78,9 +78,9 @@ import DynamicGrids: SimData, Extent, WritableGridData,
         @test sum(neighbors(vonneumann)) == 3
         vonneumann2 = VonNeumann(2)
         @test offsets(vonneumann2) == 
-           ((0, -2), (-1, -1), (0, -1), (1, -1), 
+           CartesianIndex.(((0, -2), (-1, -1), (0, -1), (1, -1), 
              (-2 , 0), (-1, 0), (1, 0), (2, 0), 
-             (-1, 1), (0, 1), (1, 1), (0, 2))
+             (-1, 1), (0, 1), (1, 1), (0, 2)))
 
         vonneumann1 = @set vonneumann._buffer = buf2
         @test vonneumann1._buffer == buf2
@@ -108,7 +108,8 @@ import DynamicGrids: SimData, Extent, WritableGridData,
         @test sum(custom1) == 2
         @test sum(custom2) == 0
         @test sum(layered) == (1, 2)
-        @test offsets(layered) == (((-1, 1), (-2, 2)), ((1, 2), (2, 2)))
+        @test offsets(layered) == (CartesianIndex.(((-1, 1), (-2, 2))), 
+                                   CartesianIndex.(((1, 2), (2, 2))))
 
         layered1 = @set layered._buffer = 2buf
         @test layered1._buffer == 2buf
@@ -132,14 +133,13 @@ end
         @test kernelproduct(k) == sum((1:9).^2)
         @test neighbors(k) == reshape(1:9, 3, 3)
         @test collect(offsets(k)) ==
-            [(-1, -1) (0, -1) (1, -1)
-             (-1, 0)  (0, 0)  (1, 0)
-             (-1, 1)  (0, 1)  (1, 1)]
+            CartesianIndex.([(-1, -1) (0, -1) (1, -1)
+                            (-1, 0)  (0, 0)  (1, 0)
+                            (-1, 1)  (0, 1)  (1, 1)])
         @test collect(positions(k, (2, 2))) ==
-             [(1, 1) (2, 1) (3, 1)
-              (1, 2) (2, 2) (3, 2)
-              (1, 3) (2, 3) (3, 3)]
-
+             CartesianIndex.([(1, 1) (2, 1) (3, 1)
+                             (1, 2) (2, 2) (3, 2)
+                             (1, 3) (2, 3) (3, 3)])
     end
     @testset "Moore" begin
         k = Kernel(Moore{1,8,typeof(buf)}(buf), (1:4..., 6:9...))
@@ -147,7 +147,7 @@ end
     end
     @testset "Positional" begin
         off = ((0,-1),(-1,0),(1,0),(0,1))
-        hood = Positional{1,4,typeof(off),typeof(buf)}(off, buf)
+        hood = Positional(off, buf)
         k = Kernel(hood, 1:4)
         @test kernelproduct(k) == 1 * 2 + 2 * 4 + 3 * 6 + 4 * 8
     end
@@ -162,9 +162,9 @@ struct TestSetNeighborhoodRule{R,W,N} <: SetNeighborhoodRule{R,W}
     neighborhood::N
 end
 function DynamicGrids.applyrule!(
-    data, rule::TestSetNeighborhoodRule{R,Tuple{W1,}}, state, index
+    data, rule::TestSetNeighborhoodRule{R,Tuple{W1,}}, state, I
 ) where {R,W1} 
-    add!(data[W1], state[1], index...)
+    add!(data[W1], state[1], I)
 end
 
 
@@ -186,13 +186,13 @@ end
     @test neighborhoodkey(ruleA) == :a
     @test neighborhoodkey(ruleB) == :b
     @test Tuple(offsets(ruleB)) === 
-        ((-2, -2), (-2, -1), (-2, 0), (-2, 1), (-2, 2), (-1, -2), (-1, -1), (-1, 0), 
+        CartesianIndex.(((-2, -2), (-2, -1), (-2, 0), (-2, 1), (-2, 2), (-1, -2), (-1, -1), (-1, 0), 
          (-1, 1), (-1, 2), (0, -2), (0, -1), (0, 0), (0, 1), (0, 2), (1, -2), (1, -1), 
-         (1, 0), (1, 1), (1, 2), (2, -2), (2, -1), (2, 0), (2, 1), (2, 2))
+         (1, 0), (1, 1), (1, 2), (2, -2), (2, -1), (2, 0), (2, 1), (2, 2)))
     @test Tuple(positions(ruleB, (10, 10))) == 
-        ((8, 8), (8, 9), (8, 10), (8, 11), (8, 12), (9, 8), (9, 9), (9, 10), (9, 11), 
+        CartesianIndex.(((8, 8), (8, 9), (8, 10), (8, 11), (8, 12), (9, 8), (9, 9), (9, 10), (9, 11), 
          (9, 12), (10, 8), (10, 9), (10, 10), (10, 11), (10, 12), (11, 8), (11, 9), 
-         (11, 10), (11, 11), (11, 12), (12, 8), (12, 9), (12, 10), (12, 11), (12, 12))
+         (11, 10), (11, 11), (11, 12), (12, 8), (12, 9), (12, 10), (12, 11), (12, 12)))
 end
 
 @testset "radius" begin
@@ -214,20 +214,21 @@ end
     buf = reshape(2:10, 3, 3)
     hood = Positional(((-1, -1), (1, 1)), buf)
     @test Tuple(neighbors(hood)) == (2, 10)
-    @test offsets(hood) == ((-1, -1), (1, 1))
-    @test Tuple(positions(hood, (2, 2))) == ((1, 1), (3, 3))
-    @set! hood.offsets = ((-5, -5), (5, 5))
-    @test offsets(hood) == hood.offsets == ((-5, -5), (5, 5))
+    @test offsets(hood) == CartesianIndex.(((-1, -1), (1, 1)))
+    @test Tuple(positions(hood, (2, 2))) == CartesianIndex.(((1, 1), (3, 3)))
+    @set! hood.offsets = CartesianIndex.(((-5, -5), (5, 5)))
+    @test offsets(hood) == hood.offsets == CartesianIndex.(((-5, -5), (5, 5)))
 end
 
 @testset "LayeredPositional" begin
     lhood = LayeredPositional(
         Positional(((-1, -1), (1, 1)), ), Positional(((-2, -2), (2, 2)), )
     )
-    @test offsets(lhood) == (((-1, -1), (1, 1)), ((-2, -2), (2, 2)))
+    @test offsets(lhood) == (CartesianIndex.(((-1, -1), (1, 1))), 
+                             CartesianIndex.(((-2, -2), (2, 2))))
     @test collect.(collect(positions(lhood, (1, 1)))) == 
-        [[(0, 0), (2, 2)],
-         [(-1, -1), (3, 3)]]
+        [CartesianIndex.([(0, 0), (2, 2)]),
+         CartesianIndex.([(-1, -1), (3, 3)])]
 
     buf = reshape(1:25, 5, 5)
     lhood_buf = DynamicGrids._setbuffer(lhood, buf)

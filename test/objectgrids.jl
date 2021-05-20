@@ -45,8 +45,9 @@ end
 
 @testset "SetCell randomly updates a StaticArray" begin
     rule = SetCell{:grid1}() do data, state, I
-        if I == (2, 2) || I == (1, 3)
-            data[:grid1][I...] = SA[99.0, 100.0]
+        if Tuple(I) == (2, 2) || Tuple(I) == (1, 3)
+            @show typeof(data)
+            data[:grid1][I] = SA[99.0, 100.0]
         end
     end
     init = (grid1 = fill(SA[0.0, 0.0], 3, 3),)
@@ -124,8 +125,8 @@ end
 
 @testset "SetCell rule randomly updates a struct" begin
     rule = SetCell{:grid1,:grid1}() do data, state, I
-        if I == (2, 2) || I == (1, 3)
-            data[:grid1][I...] = TS(99.0, 100.0)
+        if Tuple(I) == (2, 2) || Tuple(I) == (1, 3)
+            data[:grid1][I] = TS(99.0, 100.0)
         end
     end
     init = (grid1 = fill(TS(0.0, 0.0), 3, 3),)
@@ -145,8 +146,8 @@ end
         @test DynamicGrids.to_rgb(ObjectScheme(), DynamicGrids.normalise(TestStruct(99.0, 1.0), nothing, 99)) == ARGB32(1.0)
     end
     rule = SetCell{:grid1,:grid1}() do data, state, I
-        if I == (2, 2) || I == (1, 3)
-            data[:grid1][I...] = TS(99.0, 100.0)
+        if Tuple(I) == (2, 2) || Tuple(I) == (1, 3)
+            data[:grid1][I] = TS(99.0, 100.0)
         end
     end
     init = (grid1=fill(TS(0.0, 0.0), 3, 3),)

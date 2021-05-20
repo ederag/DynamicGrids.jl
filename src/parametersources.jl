@@ -58,6 +58,8 @@ _unwrap(::Type{<:Aux{X}}) where X = X
 @inline aux(nt::NamedTuple, ::Aux{Key}) where Key = nt[Key]
 
 # If there is no time dimension we return the same data for every timestep
+_getaux(data::AbstractSimData, key::Union{Aux,Symbol}, I::CartesianIndex) = 
+    _getaux(data, key, Tuple(I)...)
 _getaux(data::AbstractSimData, key::Union{Aux,Symbol}, I...) = 
     _getaux(aux(data, key), data, key, I...)
 _getaux(A::AbstractMatrix, data::AbstractSimData, key::Union{Aux,Symbol}, y, x) = A[y, x]
@@ -289,10 +291,10 @@ const DELAY_IGNORE = Union{Function,SArray,AbstractDict,Number}
 
 @inline function hasdelay(rules::Tuple)
     # Check for Delay as parameter or used in rule code
-    length(_getdelays(rules)) > 0 || any(map(needsdelay, rules))
+    length(_getdelays(rules)) > 0 || any(map(hasdelay, rules))
 end
 
-needsdelay(rule::Rule) = false
+hasdelay(rule::Rule) = false
 
 # _setdelays
 # Update any Delay anywhere in the rules Tuple.

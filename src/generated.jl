@@ -64,6 +64,10 @@ end
 # grid, which is 10x or more faster than using a view. 
 # We could possible just use this instead of _update_buffers
 # for the sake of simplicity, with some performance loss.
+@inline function _getwindow(tile::AbstractArray, hood::Neighborhood, I::CartesianIndex)
+    _getwindow(tile, hood, Tuple(I)...)
+end
+# TODO generalise to N dimensions
 @generated function _getwindow(tile::AbstractArray{T}, ::Neighborhood{R}, i, j) where {T,R}
     S = 2R+1
     L = S^2

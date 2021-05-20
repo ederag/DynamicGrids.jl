@@ -26,23 +26,23 @@ end
 
 # We have to hook into cell_kernel! to handle the option of no return value
 @inline function cell_kernel!(
-    simdata, ruletype::Val{<:Rule}, condition::RunIf, rkeys, wkeys, I...
+    simdata, ruletype::Val{<:Rule}, condition::RunIf, rkeys, wkeys, I::CartesianIndex
 )
-    readval = _readcell(simdata, rkeys, I...)
+    readval = _readcell(simdata, rkeys, I)
     if condition.f(data, readval, I)
         writeval = applyrule(simdata, rule(condition), readval, I)
-        _writecell!(simdata, ruletype, wkeys, writeval, I...)
+        _writecell!(simdata, ruletype, wkeys, writeval, I)
     else
         # Otherwise copy source to dest without change
-        _writecell!(simdata, ruletype, wkeys, _readcell(simdata, wkeys, I...), I...)
+        _writecell!(simdata, ruletype, wkeys, _readcell(simdata, wkeys, I), I)
     end
     return nothing
 end
 # We have to hook into cell_kernel! to handle the option of no return value
 @inline function cell_kernel!(
-    simdata, ::Type{<:SetRule}, condition::RunIf, rkeys, wkeys, I...
+    simdata, ::Type{<:SetRule}, condition::RunIf, rkeys, wkeys, I::CartesianIndex
 )
-    readval = _readcell(simdata, rkeys, I...)
+    readval = _readcell(simdata, rkeys, I)
     if condition.f(data, readval, I)
         applyrule!(simdata, rule(condition), readval, I)
     end

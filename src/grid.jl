@@ -264,7 +264,7 @@ end
     # Dest status is not threadsafe, even if the 
     # setindex itself is safe. So we LOCK
     lock(proc)
-    @inbounds _setdeststatus!(d, x, I...)
+    @inbounds setdeststatus!(d, x, I...)
     unlock(proc)
     @inbounds dest(d)[I...] = x
 end
@@ -273,10 +273,11 @@ end
 # Sets the status of the destination block that the current index is in.
 # It can't turn of block status as the block is larger than the cell
 # But should be used inside a LOCK
-_setdeststatus!(d::WritableGridData{<:Any,R}, x, I...) where R = 
-    _setdeststatus!(d, opt(d), x, I...)
-function _setdeststatus!(d::WritableGridData{<:Any,R}, opt::SparseOpt, x, I...) where R
-    blockindex = _indtoblock.(I .+ R, 2R)
+_setdeststatus!(d::WritableGridData{<:Any,R}, x, I...) where R = _setdeststatus!(d, opt(d), x, I...)
+_setdeststatus!(d::WritableGridData{<:Any,R}, opt::SparseOpt, x, I::CartesianIndex) where R = 
+    _setdeststatus(d, opt, x, Tuple(I)...)
+function _setdeststatus!(d::WritableGridData{<:Any,R}, opt::SparseOpt, x, i, I...) where R
+    blockindex = _indtoblock.((i, I...) .+ R, 2R)
     @inbounds deststatus(d)[blockindex...] |= !(opt.f(x))
     return nothing
 end
