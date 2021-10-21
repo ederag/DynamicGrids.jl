@@ -7,7 +7,11 @@ abstract type AbstractRuleset <: AbstractModel end
 
 # Getters
 ruleset(rs::AbstractRuleset) = rs
-rules(rs::AbstractRuleset) = rs.rules
+function rules(rs::AbstractRuleset)
+    lock(rs) do
+        rs.rules
+    end
+end
 settings(rs::AbstractRuleset) = rs.settings
 boundary(rs::AbstractRuleset) = boundary(settings(rs))
 proc(rs::AbstractRuleset) = proc(settings(rs))
@@ -20,8 +24,17 @@ Base.step(rs::AbstractRuleset) = timestep(rs)
 
 # ModelParameters interface
 Base.parent(rs::AbstractRuleset) = rules(rs)
-ModelParameters.setparent!(rs::AbstractRuleset, rules) = rs.rules = rules
+Base.lock(rs::AbstractRuleset) = nothing
+Base.lock(f, rs::AbstractRuleset) = f()
+Base.unlock(rs::AbstractRuleset) = nothing
+
 ModelParameters.setparent(rs::AbstractRuleset, rules) = @set rs.rules = rules
+function ModelParameters.setparent!(rs::AbstractRuleset, rules)
+    lock(rs) do 
+        rs.rules = rules
+    end
+end
+
 
 """
     Rulseset <: AbstractRuleset
@@ -51,14 +64,24 @@ mutable struct Ruleset{S} <: AbstractRuleset
     # But they are when rebuilt in a StaticRuleset later
     rules::Tuple{Vararg{<:Rule}}
     settings::S
+    spinlock::Threads.SpinLock
+end
+function Ruleset(rules::Tuple, settings::AbstractSimSettings)
+    Ruleset(rules, settings, Threads.SpinLock())
 end
 Ruleset(rule1, rules::Rule...; kw...) = Ruleset((rule1, rules...); kw...)
 Ruleset(rules::Tuple; kw...) = Ruleset(rules, SimSettings(; kw...))
 Ruleset(rs::AbstractRuleset) = Ruleset(rules(rs), settings(rs))
 function Ruleset(; rules=(), settings=nothing, kw...) 
     settings1 = settings isa Nothing ? SimSettings(; kw...) : settings
-    Ruleset(rules, settings1)
+    return Ruleset(rules, settings1)
 end
+ModelParameters.setparent!(rs::AbstractRuleset, rules) = rs.rules[] = rules
+ModelParameters.setparent(rs::AbstractRuleset, rules) = @set rs.rules = rules
+
+Base.lock(rs::Ruleset) = lock(rs.spinlock)
+Base.lock(f, rs::Ruleset) = lock(f, rs.spinlock)
+Base.unlock(rs::Ruleset) = unlock(rs.spinlock)
 
 struct StaticRuleset{R<:Tuple,S} <: AbstractRuleset
     rules::R
@@ -69,7 +92,7 @@ StaticRuleset(rules::Tuple; kw...) = StaticRuleset(rules, SimSettings(; kw...))
 StaticRuleset(rs::AbstractRuleset) = StaticRuleset(rules(rs), settings(rs))
 function StaticRuleset(; rules=(), settings=nothing, kw...) 
     settings1 = settings isa Nothing ? SimSettings(; kw...) : settings
-    StaticRuleset(rules, settings1)
+    return StaticRuleset(rules, settings1)
 end
 
 const SRuleset = StaticRuleset
